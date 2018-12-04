@@ -1,2 +1,2 @@
-# Kingsland-Blockchain-Group-Project
-Blockchain implementation by Kingsland students
+# Kingsland-Blockchain-2018-Group1-Project
+Group 1- Daniel, Wai Mun and Saji
