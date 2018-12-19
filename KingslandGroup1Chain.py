@@ -1,101 +1,161 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+import functools
+#initialize
+MINING_REWARD = 10
 
-"""
-Kingsland Group 1 Simple Block Chain with mining - Saji Karuvallil David
-"""
+genesis_block = {
+'previous_hash': '',
+        'index': 0,
+        'transactions': []
+}
+blockchain = [genesis_block]
+open_transactions = []
+owner = 'Saji'
+participants = {'Saji'}
 
-import sys
-import datetime
-import hashlib
+def hash_block(block):
+    return '-'.join ( [str ( block[key] ) for key in block] )
 
-class Block:
+def get_balance(participant):
+    tx_sender = [[tx['amount'] for tx in block['transactions'] if tx['sender'] == participant] for block in blockchain]
+    open_tx_sender = [tx['amount'] for tx in open_transactions if tx['sender'] == participant]
+    tx_sender.append(open_tx_sender)
+    print(tx_sender)
+    amount_sent = functools.reduce(lambda tx_sum, tx_amt: tx_sum + sum(tx_amt) if len(tx_amt) > 0 else tx_sum + 0, tx_sender, 0)
+    tx_recipient = [[tx['amount'] for tx in block['transactions'] if tx['recipient'] == participant] for block in blockchain]
+    amount_received = functools.reduce(lambda tx_sum, tx_amt: tx_sum + sum(tx_amt) if len(tx_amt) > 0 else tx_sum + 0, tx_recipient, 0)
+    return amount_received - amount_sent
 
-    blockID = -1 # Genesis block is 0
-
-    def __init__(self,prev_block_hash, data, timestamp, nonce = 0):
-        self.prev_block_hash = prev_block_hash
-        self.timestamp = timestamp
-        self.data = data
-        self.nonce = nonce
-        self.hash = self.mine()
-        Block.blockID += 1
-
-    @staticmethod
-    def create_genesis_block():
-        return Block(prev_block_hash="0", data="0", timestamp=datetime.datetime.now())
-
-    def build_header_bin(self):
-        return (str(self.prev_block_hash) +
-                str(self.timestamp)+
-                str(self.data) +
-                str(self.nonce)).encode()
-
-    def mine(self, difficulty = 2):
-        """Parameter:
-                difficulty : defines mining difficulty
-           Return value:
-                hash of the mined block
-        """
-        #difficulty_string = ''.join(['0' for x in range(difficulty)])
-        difficulty_string = '0' * difficulty
-        header_bin = self.build_header_bin()
-        inner_hash = hashlib.sha3_256(header_bin).hexdigest().encode()
-        outer_hash = hashlib.sha3_256(inner_hash).hexdigest()
-        while outer_hash[:difficulty] != difficulty_string:
-            self.nonce += 1
-            header_bin = self.build_header_bin()
-            inner_hash = hashlib.sha3_256(header_bin).hexdigest().encode()
-            outer_hash = hashlib.sha3_256(inner_hash).hexdigest()
-        return outer_hash
-
-    def __str__(self):
-        separator = 73 * '-'
-        info1 = "|BlkID:"+ str(Block.blockID) + ", Nonce=" + str(self.nonce) + ", Timestamp: " + str(self.timestamp) + "\n"
-        info2 = "|prev_hash " + str(self.prev_block_hash) + "\n"
-        info3 = "|hash " + str(self.hash)
-        return "+" + separator + "+\n" + info1 + info2 + info3
+def get_last_blockchain_value():
+    if len(blockchain) < 1:
+        return None
+    return blockchain[-1]
 
 
-def main():
-    # Initialize a blockchain with the genesis block
-    block_chain = [Block.create_genesis_block()]
-    print("The GENESIS block has been created")
-    print(block_chain[0]) # display Genesis block
+def get_transaction_value():
+    tx_recipient = input('Enter the recipient of the transaction: ')
+    tx_amount = float(input('Your transaction amount please :'))
+    return tx_recipient, tx_amount
 
-    # Add blocks for testing purpose
-    num_blocks_to_add = 1
 
-    # Provide transactions for mining new block
-    Data = {
-        'transactions' : [
-            {
-            'from' : 'A',
-            'to' : 'B',
-            'amount' : 10
-            },
-            {
-                'from': 'B',
-                'to': 'C',
-                'amount': 30
-            },
-            {
-                'from': 'C',
-                'to': 'D',
-                'amount': 100
-            },
-        ]
+def verify_transaction(transaction):
+    sender_balance = get_balance(transaction['sender'])
+    return sender_balance >= transaction['amount']
+
+
+def add_transaction(recipient, sender = owner, amount = 1.0):
+    """
+    Add a new transaction to the list of open transactions
+    :param sender: Sender of the transaction
+    :param recipient: Recipient of the transaction
+    :param amount: The amount that is send along with the transaction (default = 1.0)
+    """
+    transaction = {
+        'sender': sender,
+        'recipient': recipient,
+        'amount': amount
     }
+    if verify_transaction(transaction):
+        open_transactions.append(transaction)
+        participants.add(sender)
+        participants.add(recipient)
+        return True
+    return False
 
-    print(Data)
 
-    for i in range(1, num_blocks_to_add + 1):
-        block_chain.append(Block(block_chain[-1].hash,
-                             Data,
-                             datetime.datetime.now()))
-        print(block_chain[i])
+def mine_block():
+    last_block = blockchain[-1]
+    hashed_block = hash_block(last_block)
+    reward_transaction = {
+        'sender' : 'MINING',
+        'recipient' : owner,
+        'amount' : MINING_REWARD
+    }
+    copied_transactions = open_transactions[:]
+    copied_transactions.append(reward_transaction)
+    block = {
+    'previous_hash': hashed_block,
+    'index': len(blockchain),
+    'transactions': copied_transactions
+    }
+    blockchain.append(block)
+    return True
 
-    return 0
+def print_blockchain_elements():
+    #Output blockchain elements to the console
+    for block in blockchain:
+        print('Outputting block')
+        print(block)
+    else :
+        print('-' * 20)
 
-if __name__ == '__main__':
-    sys.exit(main())
+def get_user_choice():
+    user_choice = input('Please enter your choice :')
+    return user_choice
+
+
+def verify_chain():
+    """Verify the current blockchain and return true if valid or else return false"""
+    for (index, block) in enumerate(blockchain):
+        if index == 0:
+            continue
+        if block['previous_hash'] != hash_block(blockchain[index - 1]):
+            return False
+    return True
+
+def verify_transactions():
+    return all([verify_transaction(tx) for tx in open_transactions])
+
+
+waiting_for_input = True
+
+while waiting_for_input:
+    print('Please choose')
+    print('1: Add a new transaction value :')
+    print('2: Mine a new block :' )
+    print('3: Output the blockchain blocks')
+    print('4: Output the participants' )
+    print('5: Check transaction validity')
+    print ( 'h: Manipulate the chain' )
+    print('q: Quit')
+    user_choice = get_user_choice()
+    if user_choice == '1':
+        tx_data = get_transaction_value()
+        recipient, amount = tx_data
+        if add_transaction(recipient, amount = amount ):
+            print('Transaction added!')
+        else:
+            print('Transaction failed!')
+        print(open_transactions)
+    elif user_choice == '2':
+        if mine_block():
+            open_transactions = []
+    elif user_choice == '3':
+        print_blockchain_elements()
+    elif user_choice == '4':
+        print(participants)
+    elif user_choice == '5':
+        if verify_transactions():
+            print('All transactions are valid')
+        else:
+            print('There are invalid transactions!')
+    elif user_choice == 'h':
+        if len(blockchain) >= 1:
+            blockchain[0] = {
+                'previous_hash': '',
+                'index': 0,
+                'transactions': [{'sender': 'Vlad', 'recipient': 'Saji', 'amount': 100.0}]
+            }
+    elif user_choice == 'q':
+        waiting_for_input = False
+    else:
+        print('Input is invalid, please pick a value from the list!')
+        continue
+    if not verify_chain():
+        print_blockchain_elements()
+        print('Invalid chain!')
+        break
+    print ( 'Balance of {}: {:6.2f}'.format('Saji', get_balance ( 'Saji' )) )
+else:
+    print('User left!')
+
+print('Done!')
