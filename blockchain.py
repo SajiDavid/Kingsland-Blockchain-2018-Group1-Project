@@ -315,7 +315,7 @@ class BlockChain():
 			new_transactions = self.load_trans(response.json()['transactions'])
 			self.lock.acquire()	# lock the thread to refresh the entire blockchain and pending transactions
 			self.chain = new_chain
-			self.pending_transactions = new_transactions
+			# self.pending_transactions = new_transactions
 			self.chainId = new_chain_id
 			self.save_chain( self.blockchain_file )
 			self.save_transaction( self.transaction_file )
@@ -655,7 +655,7 @@ class BlockChain():
 		if new_chain:
 			self.lock.acquire()	# lock for thread safety
 			self.chain = new_chain
-			self.pending_transactions = other_transactions
+			# self.pending_transactions = other_transactions
 			self.chainId = other_chain_id
 			self.save_chain( self.blockchain_file )
 			self.save_transaction( self.transaction_file )
