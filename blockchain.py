@@ -953,6 +953,11 @@ def showAllBlocks():
 @app.route('/blocks/<block>', methods = ['GET'])
 def showABlock(block):
 	iBlock = int(block)
+	if iBlock>=len(blockchain.chain):
+		response = {
+			'message' : 'Out of index Block ' + block,
+		}
+		return jsonify(response), 408
 	blockdata = json.dumps(blockchain.chain[iBlock], default=lambda x: x.__dict__)
 	response = {
 		'message' : 'data of Block ' + block,
