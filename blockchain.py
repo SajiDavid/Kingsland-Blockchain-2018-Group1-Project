@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from flask import Flask
 from flask import jsonify
 import datetime
+from datetime import datetime
 from flask import request
 import random
 import os.path
@@ -77,7 +78,6 @@ class BlockClass():
 		for i in range(len(self.Transactions)):
 			reward += self.Transactions[i].Fee
 		return BlockChain.MiningReward + reward
-		
 	
 	def InsertCoinbaseTransaction(self, mode, miner ):
 		frm = 40 * "0"
@@ -85,7 +85,7 @@ class BlockClass():
 		value = self.computeReward()
 		fee = 0
 		x = datetime.datetime.now()
-		date_created = x.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+		date_created = x.strftime('%Y-%m-%dT%H:%M:%S.%f') + 'Z'
 		data = "coinbase tx"
 		sender_pub_key = 65 * "0"
 		sender_signature = 64 * "0"
@@ -119,7 +119,7 @@ class BlockClass():
 	def setGenesisBlock(self):
 		self.Nonce = 0
 		x = datetime.datetime.now()
-		self.DateCreated = x.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+		self.DateCreated = x.strftime('%Y-%m-%dT%H:%M:%S.%f') + 'Z'
 		tail_bin = (str(self.PrevBlockHash)+str(self.DateCreated)+str(self.Nonce)).encode()
 		outer_hash = hashlib.sha256(tail_bin).hexdigest()
 		self.BlockHash = outer_hash
@@ -127,7 +127,7 @@ class BlockClass():
 	def build_body_bin(self):
 		self.Nonce += 1
 		x = datetime.datetime.now()
-		self.DateCreated = x.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+		self.DateCreated = x.strftime('%Y-%m-%dT%H:%M:%S.%f') + 'Z'
 		return (str(self.BlockDataHash) +
 			str(self.DateCreated)+
 			str(self.Nonce)).encode()
@@ -161,6 +161,14 @@ class BlockClass():
 		print( "outer_hash = ", outer_hash )
 		return block_hash==outer_hash
 	
+	def valid_trans(self):
+		for t in range(len(self.Transactions)):
+			if self.Transactions[t].TransactionDataHash!=self.Transactions[t].computeTransDataHash():
+				return False
+		if self.Transactions[0].value!=self.computeReward():
+			return False
+		return True				
+
 	def valid_nonce(self):
 		body_bin = self.get_body_bin()
 		outer_hash = hashlib.sha256(body_bin).hexdigest()
@@ -243,6 +251,7 @@ class BlockChain():
 	About = "KingslandUniChain/1.0-python"
 	CurrentDifficulty = 4
 	MiningReward = 5000000
+	FaucetTransTimeLimit = 3600
 
 	def __init__(self, host, file1, file2, load):
 		self.lock = threading.Lock()
@@ -257,7 +266,7 @@ class BlockChain():
 		if not load:
 			# Generate a globally unique address for this node
 			x = datetime.datetime.now()
-			node_id = x.strftime('%Y%m%d_%H%M%S%f')[:-3] + '_' + str(uuid4()).replace('-','')
+			node_id = x.strftime('%Y%m%d_%H%M%S%f') + '_' + str(uuid4()).replace('-','')
 			node_id = node_id.encode()
 			outer_hash = hashlib.sha256(node_id).hexdigest()
 			self.nodeId = outer_hash
@@ -355,7 +364,6 @@ class BlockChain():
 		else:
 			return True
 		
-
 	def load_trans(self, data):
 		# load pending transaction pool
 		transactions = json.loads(data)
@@ -400,7 +408,7 @@ class BlockChain():
 		# hardcode those initial Faucet transactions
 		Trans = []
 		x = datetime.datetime.now()
-		date_created = x.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+		date_created = x.strftime('%Y-%m-%dT%H:%M:%S.%f') + 'Z'
 		transaction = TransactionClass("0000000000000000000000000000000000000000", 
 			"c3293572dbe6ebc60de4a20ed0e21446cae66b17", 
 			1000000000, 0, date_created, 
@@ -509,6 +517,42 @@ class BlockChain():
 		else:
 			return None
 			
+	# if blockchain.look_for_faucet_trans(sender, recipient, date_created, BlockChain.FaucetTransTimeLimit):
+	def look_for_faucet_trans(self, sender, recipient, date_created, time_limit):
+		print( "sender = ", sender )
+		print( "recipient = ", recipient )
+		print( "pending_transactions length is ", len(self.pending_transactions) )
+		print( "BlockChain length is ", len(self.chain) )
+		for t in range(len(self.pending_transactions)-1, -1, -1):
+			print( "Transaction ", t )
+			print( "From = ", self.pending_transactions[t].From )
+			print( "To = ", self.pending_transactions[t].To )
+			if self.pending_transactions[t].From==sender and self.pending_transactions[t].To==recipient:
+				datetime_prev_trans = datetime.strptime(self.pending_transactions[t].DateCreated, '%Y-%m-%dT%H:%M:%S.%fZ')
+				datetime_new_trans = datetime.strptime(date_created, '%Y-%m-%dT%H:%M:%S.%fZ')
+				dateTimeDifference = datetime_new_trans - datetime_prev_trans
+				total_seconds = dateTimeDifference.total_seconds()
+				print("In pending_transactions: total_seconds = ", total_seconds)
+				print("In pending_transactions: time_limit = ", time_limit)
+				if total_seconds<time_limit:
+					return True
+		for i in range(len(self.chain)-1,0,-1):
+			print( "Block ", i )
+			for j in range(len(self.chain[i].Transactions)-1,0,-1):
+				print( "BlockChain Tranaction ", j )
+				print( "From = ", self.chain[i].Transactions[j].From )
+				print( "To = ", self.chain[i].Transactions[j].To )
+				if self.chain[i].Transactions[j].From==sender and self.chain[i].Transactions[j].To==recipient:
+					datetime_prev_trans = datetime.strptime(self.chain[i].Transactions[j].DateCreated, '%Y-%m-%dT%H:%M:%S.%fZ')
+					datetime_new_trans = datetime.strptime(date_created, '%Y-%m-%dT%H:%M:%S.%fZ')
+					dateTimeDifference = datetime_new_trans - datetime_prev_trans
+					total_seconds = dateTimeDifference.total_seconds()
+					print("In BlockChain: total_seconds = ", total_seconds)
+					print("In BlockChain: time_limit = ", time_limit)
+					if total_seconds<time_limit:
+						return True
+		return False				
+			
 	def find_node( self, node ):
 		for peer in self.nodes:
 			if peer.URL==node:
@@ -562,6 +606,8 @@ class BlockChain():
 			# Check that the Proof of Work is correct
 			if not block.valid_nonce():
 				return False
+			if not block.valid_trans():
+				return False;
 			last_block = block
 			current_index += 1
 		return True	
@@ -775,8 +821,22 @@ def send_transaction():
 		response = { "errorMsg": "Invalid transaction: some field(s) are missing" }
 		return jsonify(response), 400
 	# check whether balance of the sender account is enough	
-	sender = values['from']
 	value = values['value']
+	if int(value)<=0:
+		response = { "errorMsg": "Invalid transaction value!" }
+		return jsonify(response), 403
+	sender = values['from']
+	recipient = values['to']
+	date_created = values['dateCreated']
+	print( "sender = ", sender )
+	print( "Faucet_Account = ", blockchain.chain[0].Transactions[0].To )
+	if blockchain.chain[0].Transactions[0].To==sender:	# Faucet account
+		if blockchain.look_for_faucet_trans(sender, recipient, date_created, BlockChain.FaucetTransTimeLimit):
+			print( "Found a conflicting transaction!" )
+			response = { "errorMsg": "Already apply coins from the same Faucet Account!" }
+			return jsonify(response), 405
+	
+	
 	fee = values['fee']
 	pub_key = values['senderPubKey']
 	# pub_key = int( pub_key, 16 )
